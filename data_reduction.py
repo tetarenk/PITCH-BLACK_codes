@@ -17,6 +17,9 @@ import numpy as np
 from astropy.io import ascii
 import os
 from astropy.io import fits
+from astropy import wcs,coordinates
+from astropy import units as u
+from astropy.coordinates import Angle
 
 ######################### Defining intensity functions
 def get_scan_numbers(data_dir,date,target,cal_name_list):
@@ -107,7 +110,7 @@ def create_map_fits(num,configfile,cal_scan,output_dir,data_dir):
     scan number' directory.
     ----------------------------------------------------------------------------
     Parameters: - num: string with target scan number
-                - configfile: name of configuration file
+                - configfile: name of configuration file WITH full path
                 - cal_scan: string with tcalibration scan number
                 - output_dir: path to folder where the data products are stored
                 - data_dir: path to folder where the data is stored
@@ -120,7 +123,7 @@ def create_map_fits(num,configfile,cal_scan,output_dir,data_dir):
     # Create list
     create_list(num,data_dir,output_dir,cal_scan)
     # create map
-    smurf.makemap(in_='^'+output_dir2+'mylist'+num+'.lst',out=output_dir2+'scan_'+num,config = '^'+data_dir+'dimmconfig_bright_compact.lis')  
+    smurf.makemap(in_='^'+output_dir2+'mylist'+num+'.lst',out=output_dir2+'scan_'+num,config = '^'+configfile)  
     # get FCF value
     fcf_val = FCF(output_dir2+'scan_'+cal_scan+'.sdf')
     # run cmult
@@ -130,7 +133,7 @@ def create_map_fits(num,configfile,cal_scan,output_dir,data_dir):
     # move to Data products directory
     os.system('mv '+cropped_map.datafiles[0]+' '+output_dir2)
     # create fits file
-    convert.ndf2fits(in_= output_dir2+'scan_'+num+'_cal_crop.sdf',out = output_dir2+'scan_'+num+'_cal.fits')
+    convert.ndf2fits(in_= output_dir2+'scan_'+num+'_cal_crop.sdf',out = output_dir2+'scan_'+num+'_cal_crop.fits')
 
 def create_mosaic(flag,target_scan_list,output_dir,cal_scan):
     '''
@@ -183,6 +186,8 @@ def create_mosaic(flag,target_scan_list,output_dir,cal_scan):
 
     # Run wcsmosaic
     kappa.wcsmosaic(in_='^'+output_dir2+'mylist_mosaic_'+flag+'.lst', out = output_dir2+'mosaic_map_'+flag, lbnd = [lbound1,lbound2,lbound3] , ubnd = [lbound1+naxis1,lbound2+naxis2,lbound3+naxis3],ref = names_mosaic[0])
+    # Convert to fits
+    convert.ndf2fits(in_=output_dir2+'mosaic_map_'+flag+'.sdf',out = output_dir2+'mosaic_map_'+flag+'.fits')
     
 def timing_cube(num,configfile,cal_scan,output_dir):
     '''
@@ -199,7 +204,7 @@ def timing_cube(num,configfile,cal_scan,output_dir):
     (6) Converts the output of step 5 in .fits files
     ----------------------------------------------------------------------------
     Parameters: - num: string with target scan number
-                - configfile: name of configuration file
+                - configfile: name of configuration file, WITH the full path
                 - cal_scan: string with tcalibration scan number
                 - output_dir: path to folder where the data products are stored
     Output: - A file corresponding to the timing cube (RA,DEC,time)
@@ -209,7 +214,7 @@ def timing_cube(num,configfile,cal_scan,output_dir):
         os.mkdir(output_dir+'calibrate_'+cal_scan)
     output_dir2 = output_dir+'calibrate_'+cal_scan+'/'
     # making timing cube 
-    smurf.makemap(in_='^'+output_dir2+'mylist'+num+'.lst',out=output_dir2+'scan_'+num+'_shortmp',config = '^'+data_dir+'dimmconfig_bright_compact_shortmaps.lis')
+    smurf.makemap(in_='^'+output_dir2+'mylist'+num+'.lst',out=output_dir2+'scan_'+num+'_shortmp',config = '^'+configfile)
     # stacking frames
     smurf.stackframes(in_ = output_dir2+'scan_'+num+'_shortmp.more.smurf.shortmaps', out = output_dir2+'scan_'+num+'_shortmp_cube', sort = False, sortby = '')
     # get FCF val
@@ -221,26 +226,55 @@ def timing_cube(num,configfile,cal_scan,output_dir):
     # Obtain start date
     #mjd_start = fits.open(output_dir+'scan_'+num+'_cal_shortmp_cube.fits')[0].header['MJD-OBS']
    
-def noise_estimate(num,output_dir,cal_scan):
+def noise_estimate(num,output_dir,cal_scan,flag,single):
     '''
     This function creates a file that contain the noise estimation for each
     target scan number.
     ----------------------------------------------------------------------------
     Parameters: - num: string with target scan number
                 - output_dir: path to folder where the data products are stored
-                - cal_scan: string with tcalibration scan number
-    Output: - A .txt file with the target scan number in column 1, and the noise
-              estimation in column 2
-    '''
+                - cal_scan: string with calibration scan number
+                - flag: label for getting the noise of calibrator or target
+                - single: is it a single scan? yes/no
+    Output: - A .txt file with 
+                column 1: target scan number
+                column 2: flag indicating type of file
+                column 3: noise estimation in mJy
+                column 4: maximum intensity in mJy
+                column 5: x-coordinate of pixel with max flux
+                column 6: y-coordinate of pixel with max flux
+            and beam parameters
+                column 7: majfwhm in arcsec
+                column 8: minfwhm in arcsec
+                column 9: orientation in degrees
+    ''' 
     output_dir2 = output_dir+'calibrate_'+cal_scan+'/'
-    rms_noise = kappa.stats(output_dir2+'scan_'+num+'_cal.sdf')
-    noise_val = rms_noise.sigma*1e3 # uncertainty in mJy
+    if single=='yes':
+        filename = output_dir2+'scan_'+num+'_cal_crop.sdf'
+    elif single=='no':
+        filename = output_dir2+'mosaic_map_crop.sdf'
+    rms_noise = kappa.stats(filename)
+    noise_val = rms_noise.mean*1e3 # uncertainty in mJy
+    max_intensity = rms_noise.maximum*1e3
+    # read fits file corresponding to output_dir2+'scan_'+num+'_cal_crop
+    fits_map = fits.open(filename.strip('.sdf')+'.fits')[0].data
+    # find the indices corresponding to the maximum flux
+    indices = np.where(fits_map==max_intensity/1000) # returns z,x,y
+    x = indices[1][0]
+    y = indices[2][0]
+    # get the coordinates of the maximum intensity in the calibrator scan, to be
+    # used later to fit the beam size in that map
+    cal_stat = kappa.stats(output_dir2+'scan_'+cal_scan+'_cal_crop.sdf').maxwcs.split(',')
+    cal_beam = kappa.beamfit(output_dir2+'scan_'+cal_scan+'_cal_crop.sdf', pos = '"'+cal_stat[0]+','+cal_stat[1]+'"',mode='interface', gauss = False)
+    majfwhm = Angle(cal_beam.majfwhm[0]*u.rad).arcsec
+    minfwhm = Angle(cal_beam.minfwhm[0]*u.rad).arcsec
+    orient = cal_beam.orient[0]
     # Keep record of noise_val for each target number in a file
     if os.path.isfile(output_dir2+'noise_log.txt'):       
         file = open(output_dir2+'noise_log.txt','a') 
     elif not os.path.isfile(output_dir2+'noise_log.txt'): 
         file = open(output_dir2+'noise_log.txt','w') 
-    file.write('{0} {1}\n'.format(num,noise_val)) # writes name in each line
+    file.write('{0} {1} {2} {3} {4} {5} {6} {7} {8}\n'.format(num,flag,noise_val,max_intensity,x,y,majfwhm,minfwhm,orient))
     file.close()
 ######################### End of Defining Intensity functions   
     
@@ -265,35 +299,40 @@ def create_pol_map(num,output_dir):
 
 ######################### End of Defining Polarization functions
     
-    
+if __name__=="__main__":   
     
 ######################### Parameter section
 
-data_dir ='/Users/constanza/Desktop/Research/Data/'
-output_dir = '/Users/constanza/Desktop/Research/Data_products/'
-date = '20150622'
-# NOTE: numbers must have 2 digits!
-target = 'BHXRB V404 Cyg'
-cal_name_list = ['Arp220','CRL2688']
+    data_dir ='/Users/constanza/Desktop/Research/Data/'
+    data_dir_pol = '/Users/constanza/Desktop/Research/Data_pol/'
+    output_dir = '/Users/constanza/Desktop/Research/Data_products/'
+    date = '20150622'
+    # NOTE: numbers must have 2 digits!
+    target = 'BHXRB V404 Cyg'
+    cal_name_list = ['Arp220','CRL2688']
 
-config_file ='dimmconfig_bright_compact.lis'
-config_file2 ='dimmconfig_bright_compact_shortmaps.lis'
+    config_file =data_dir+'dimmconfig_bright_compact.lis'
+    config_file2 =data_dir+'dimmconfig_bright_compact_shortmaps.lis'
+    # config_file3 contains the commands suggested by david
+    config_file3 = data_dir_pol+'dimmconfig_bright_compact_pol.lis'
 
-target_scan_numbers,cal_scan_numbers = get_scan_numbers(data_dir,date,target,cal_name_list)
+    target_scan_numbers,cal_scan_numbers = get_scan_numbers(data_dir,date,target,cal_name_list)
 
 ######################### End of Parameter section
 
 
 #os.system('rm -rf '+output_dir+'*')
 
-cal_scan_numbers = ['08']
+    cal_scan_numbers = ['08']
 
-for item in cal_scan_numbers:
-    #create_map_fits(item,config_file,item,output_dir,data_dir)
-    for targ in target_scan_numbers:
-        #create_map_fits(targ,config_file,item,output_dir,data_dir)
-        #timing_cube(targ,config_file,item,output_dir)
-        noise_estimate(targ,output_dir,item)
-    #create_mosaic('crop',target_scan_numbers,output_dir,item)
-    #create_mosaic('shortmp_cube',target_scan_numbers,output_dir,item)
-
+    for item in cal_scan_numbers:
+        #create_map_fits(item,config_file,item,output_dir,data_dir)
+        noise_estimate(item,output_dir,item,'cal','yes')
+        for targ in target_scan_numbers:
+            #create_map_fits(targ,config_file,item,output_dir,data_dir)
+            #timing_cube(targ,config_file3,item,output_dir)
+            noise_estimate(targ,output_dir,item,'targ','yes')
+        #create_mosaic('crop',target_scan_numbers,output_dir,item)
+        #create_mosaic('shortmp_cube',target_scan_numbers,output_dir,item)
+        noise_estimate(item,output_dir,item,'mosaic','no')
+    os.system('rm -rf PICARD*')
