@@ -26,7 +26,7 @@ NOTES:  - Requires an installed version of the Starlink Software (http://starlin
 Originally written by Coni Echiburu Trujillo
 Updates by Alex J. Tetarenko
 
-Last Updated: March 20, 2020
+Last Updated: April 17, 2020
 '''
 
 #packages to import
@@ -378,10 +378,10 @@ def noise_estimate_scuba2(num,output_dir,cal_scan,flag,single,waveband):
         minfwhm = Angle(cal_beam.minfwhm[0]*u.rad).arcsec
         orient = cal_beam.orient[0]
     # Keep record of noise_val for each target number in a file
-    if os.path.isfile(output_dir2+'noise_log.txt'):       
-        fileo = open(output_dir2+'noise_log.txt','a') 
-    elif not os.path.isfile(output_dir2+'noise_log.txt'): 
-        fileo = open(output_dir2+'noise_log.txt','w')
+    if os.path.isfile(output_dir2+'noise_log'+waveband+'.txt'):       
+        fileo = open(output_dir2+'noise_log'+waveband+'.txt','a') 
+    elif not os.path.isfile(output_dir2+'noise_log'+waveband+'.txt'): 
+        fileo = open(output_dir2+'noise_log'+waveband+'.txt','w')
         fileo.write('#Scan type rms max_I X Y beammaj beammin bpa\n')
         fileo.write('#() () (mJy) (mJy) (pix) (pix) (arcsec) (arcsec) (deg)\n')
     fileo.write('{0} {1} {2} {3} {4} {5} {6} {7} {8}\n'.format(num,flag,noise_val,max_val,x,y,majfwhm,minfwhm,orient))
@@ -598,10 +598,10 @@ def noise_estimate_pol2(nums,output_dir,waveband):
             majfwhm=9.8
             minfwhm=9.8
             orient=0.0
-        if os.path.isfile(output_dir2+'noise_log.txt'):       
-            fileo = open(output_dir2+'noise_log.txt','a') 
-        elif not os.path.isfile(output_dir2+'noise_log.txt'): 
-            fileo = open(output_dir2+'noise_log.txt','w')
+        if os.path.isfile(output_dir2+'noise_log'+waveband+'.txt'):       
+            fileo = open(output_dir2+'noise_log'+waveband+'.txt','a') 
+        elif not os.path.isfile(output_dir2+'noise_log'+waveband+'.txt'): 
+            fileo = open(output_dir2+'noise_log'+waveband+'.txt','w')
             fileo.write('#Scan type rms_IQU max_IQU X Y beammaj beammin bpa\n')
             fileo.write('#() () (mJy) (mJy) (pix) (pix) (arcsec) (arcsec) (deg)\n')
         fileo.write('{0} {1} {2} {3} {4} {5} {6} {7} {8}\n'.format(scans[i],flag[i],noise_val,max_val,x,y,majfwhm,minfwhm,orient))
@@ -719,7 +719,7 @@ if __name__=="__main__":
         #move pol2map logfiles out of working directory
         os.system('mv pol2map.log* '+output_dir)
     #move the noise log (from auto calibration) into the final processing directory
-    os.system('cp -r '+output_dir+'calibrate_default/noise_log.txt '+output_dir+'/data_products')
+    os.system('cp -r '+output_dir+'calibrate_default/noise_log'+waveband+'.txt '+output_dir+'/data_products')
     #delete the temporary directory(s) created in the current working directory by starlink
     os.system('rm -rf PICARD*')
     os.system('rm -rf tmp*')

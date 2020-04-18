@@ -23,7 +23,7 @@ NOTES:  - The beamsize (bmaj, bmin, bpa) is fixed in the fitting, so only flux a
 
 Written by: Alex J. Tetarenko and Coni Echiburu Trujillo
 
-Last Updated: March 20, 2020
+Last Updated: April 17, 2020
 '''
 
 #packages to import
@@ -213,8 +213,8 @@ def fitting(outf,fitsim,num,cal_scan,flux_guess,pos_guess,w,rms,nburn,nsample,wa
             types - 'toti', or 'pol' (str)
             plane - for types=='pol', I,Q,or U plane (0,1,2; int)
             data_dir - main output directory for observation date (str)
-    OUPUT:  Nothing returned byt function will create,
-            - txt file (fit_results.txt) with:
+    OUPUT:  Nothing returned but function will create,
+            - txt file (fit_results[waveband].txt) with:
                 column 1: MJD midpoint
                 column 2: MJD error
                 column 3: scan number
@@ -419,10 +419,10 @@ def scuba2_analysis(data_dir,target_scan_numbers,cal_scan_numbers,waveband,integ
     '''
     final_outputdir=data_dir+'/data_products/'
     for item in cal_scan_numbers:
-        noise_file = data_dir+'calibrate_'+item+'/noise_log.txt'
+        noise_file = data_dir+'calibrate_'+item+'/noise_log'+waveband+'.txt'
         guesses = ascii.read(noise_file,names=['scan','type','noise','max_i','x','y','bmaj','bmin','bpa'])
         w = [float(guesses['bmaj'][0]),float(guesses['bmin'][0]),float(guesses['bpa'][0])]
-        outf=data_dir+'calibrate_'+item+'/fit_results.txt'
+        outf=data_dir+'calibrate_'+item+'/fit_results'+waveband+'.txt'
         for targ in target_scan_numbers:
             targ_name = data_dir+'/calibrate_'+item+'/scan_'+targ+'_'+waveband+'_cal_crop.fits'
             rms = float(guesses['noise'][guesses['scan']==targ])
@@ -512,10 +512,10 @@ def pol2_analysis(data_dir,target_scan_numbers,waveband,integ,diag):
             - plots of each IQU map/I time slice with best fits overlayed
             - mcmc diagnostic plots if turned on (diag)
     '''
-    noise_file = data_dir+'calibrate_default/noise_log.txt'
+    noise_file = data_dir+'calibrate_default/noise_log'+waveband+'.txt'
     guesses = ascii.read(noise_file,names=['scan','type','noise','max_i','x','y','bmaj','bmin','bpa'])
     w = [float(guesses['bmaj'][0]),float(guesses['bmin'][0]),float(guesses['bpa'][0])]
-    outf=data_dir+'calibrate_default/fit_results.txt'
+    outf=data_dir+'calibrate_default/fit_results'+waveband+'.txt'
     for targ in target_scan_numbers:
         targ_name = data_dir+'calibrate_default/'+'stokes_i_'+waveband+'/'+date+'_000'+targ+'_stokes_cube_full.fits'
         rms = float(guesses['noise'][np.logical_and(guesses['scan']==targ,guesses['type']=='I')])
@@ -590,20 +590,36 @@ def pol2_calcu(outf,scant):
     LPerr=(100/I)*np.sqrt((Q*Qerr/(np.sqrt(Q**2+U**2)))**2+(U*Uerr/(np.sqrt(U**2+Q**2)))**2)
     PA=0.5*np.arctan(U/Q)*(180/np.pi)
     PAerr=0.5*(180/np.pi)*np.sqrt((Uerr*Q/(1+U**2))**2+(Qerr*U/(1+Q**2))**2)
-    if os.path.isfile(outf.strip('.txt')+'_pol.txt'):       
-        outfile = open(outf.strip('.txt')+'_pol.txt','a')
-    elif not os.path.isfile(outf.strip('.txt')+'_pol.txt'): 
-        outfile = open(outf.strip('.txt')+'_pol.txt','w')
+    if os.path.isfile(outf.strip('.txt')+'_pol'+waveband+'.txt'):       
+        outfile = open(outf.strip('.txt')+'_pol'+waveband+'.txt','a')
+    elif not os.path.isfile(outf.strip('.txt')+'_pol'+waveband+'.txt'): 
+        outfile = open(outf.strip('.txt')+'_pol'+waveband+'.txt','w')
         outfile.write('#scan I Q U Ierr Qerr Uerr detection LP LPerr PA PAerr\n')
         outfile.write('#() (mJy) (mJy) (mJy) (mJy) (mJy) (mJy) () (%) (%) (deg) (deg)\n') 
     outfile.write('{0} {1} {2} {3} {4} {5} {6} {7} {8} {9} {10} {11}\n'.format(scant,I,Q,U,Ierr,Qerr,Uerr,det,LP,LPerr,PA,PAerr))
     outfile.close()
-
-def create_total_log(direc,wout,obs_type):
+def frac_rms(flux,fluxerr):
+    '''Calculate fractional rms statistic for a lightcurve.
+    INPUT: flux - array of flux_guess
+           fluxerr - array of noises
+    OUTPUT: frms - % fractional rms (float)
+            frms_err - error in % fractional rms (float)
+    '''
+    wei=np.array([1/((item)**2) for item in fluxerr])
+    wm=np.average(flux,weights=wei)
+    var_data=np.var(flux,ddof=1)
+    rms_mean=np.sum(fluxerr**2)/len(fluxerr)
+    frac_rms=np.sqrt(((var_data)-rms_mean)/wm**2)
+    ex_var_err=np.sqrt((np.sqrt(2/len(flux))*rms_mean/wm**2)**2+(np.sqrt(rms_mean/len(flux))*2.*frac_rms/wm)**2)
+    frac_rms_err=(1./2.*frac_rms)*ex_var_err
+    return(frac_rms*100.,frac_rms_err*100.)
+def create_total_log(direc,wout,obs_type,integ,waveband):
     '''Write a summary log, that will be updated with each days observation.
     INPUT:  direc - path to data products directory for specific date (str)
             wout - location to store log in (str)
             obs_type - 'scuba2' or 'pol2' (str)
+            integ - bin size in seconds for light cruves if created (float)
+            waveband - '8' or '4' indicating 850um or 450um (str)
     OUTPUT: Function returns nothing, but creates,
             - A file with:
             column1: date of observation (iso format)
@@ -620,20 +636,29 @@ def create_total_log(direc,wout,obs_type):
             column12: polarization PA (deg)
             column13: error in polarization PA (deg)
     '''
-    logfile=direc+'data_products/fit_results.txt'
-    logfile2=direc+'data_products/fit_results_pol.txt'
-    if not os.path.isfile(wout+'observation_log.txt'):
-        fileo=open(wout+'observation_log.txt','w')
-        fileo.write('#Date MJD I Q U Ierr Qerr Uerr poldet LP Lperr PA PAerr\n')
+    logfile=direc+'data_products/fit_results'+waveband+'.txt'
+    logfile2=direc+'data_products/fit_results_pol'+waveband+'.txt'
+    if not os.path.isfile(wout+'observation_log'+waveband+'.txt'):
+        fileo=open(wout+'observation_log'+waveband+'.txt','w')
+        fileo.write('#Date MJD I Frms FrmserrQ U Ierr Qerr Uerr poldet LP Lperr PA PAerr\n')
+        fileo.write('#() (dys) (mJy) (%) (%) (mJy) (mJy) (mJy) (mJy) (mJy) () (%) (%) (deg) (deg)\n')
     else:
-        fileo=open(direc+'observation_log.txt','a')
+        fileo=open(direc+'observation_log'+waveband+'.txt','a')
+    #if timing donw calcualte frac. rms of lightcurve to add to log
+    if integ!=0:
+        lcf=glob.glob(direc+'data_products/target_lc*stokesI.txt')[0]
+        data_lc=np.loadtxt(lcf)
+        frms,frms_err=frac_rms(data_lc[:,1],data_lc[:,2])
+    else:
+        frms,frms_err=0,0
+    #write log
     if obs_type=='scuba2':
         data=ascii.read(logfile,names=('MJD','MJDerr','scan','stokes','flux','error','X','Y'))
         I=np.array(data['flux'][np.logical_and(data['scan']=='mosaic',data['stokes']=='I')])[0]
         Ierr=np.array(data['error'][np.logical_and(data['scan']=='mosaic',data['stokes']=='I')])[0]
         MJD=np.array(data['MJD'][np.logical_and(data['scan']=='mosaic',data['stokes']=='I')])[0]
         date=Time(float(MJD),format='mjd').iso
-        fileo.write('{0} {1} {2} {3} {4} {5} {6} {7} {8} {9} {10} {11} {12}\n'.format(date,MJD,I,0,0,Ierr,0,0,'False',0,0,0,0))
+        fileo.write('{0} {1} {2} {3} {4} {5} {6} {7} {8} {9} {10} {11} {12}\n'.format(date,MJD,I,frms,frms_err,0,0,Ierr,0,0,'False',0,0,0,0))
     elif obs_type=='pol2':
         data=ascii.read(logfile,names=('MJD','MJDerr','scan','stokes','flux','error','X','Y'))
         data2=ascii.read(logfile2,names=('scan','I','Q','U','Ierr','Qerr','Uerr','detection','LP','LPerr','PA','PAerr'))
@@ -650,7 +675,7 @@ def create_total_log(direc,wout,obs_type):
         LPerr=np.array(data2['LPerr'][data2['scan']=='mosaic'])[0]
         PA=np.array(data2['PA'][data2['scan']=='mosaic'])[0]
         PAerr=np.array(data2['PAerr'][data2['scan']=='mosaic'])[0]
-        fileo.write('{0} {1} {2} {3} {4} {5} {6} {7} {8} {9} {10} {11} {12}\n'.format(date,MJD,I,Q,U,Ierr,Qerr,Uerr,det,LP,LPerr,PA,PAerr))
+        fileo.write('{0} {1} {2} {3} {4} {5} {6} {7} {8} {9} {10} {11} {12}\n'.format(date,MJD,I,frms,frms_err,Q,U,Ierr,Qerr,Uerr,det,LP,LPerr,PA,PAerr))
 
 ####################################
 #User input
@@ -679,16 +704,16 @@ target_scan_numbers,cal_scan_numbers = get_scan_numbers(data_dir,date,target,cal
 if obs_type=='scuba2':
     scuba2_analysis(output_dir,target_scan_numbers,cal_scan_numbers,waveband,integ,diag)
     #move the flux log (from auto calibration) into the final processing directory
-    os.system('cp -r '+output_dir+'calibrate_default/fit_results.txt '+output_dir+'/data_products')
+    os.system('cp -r '+output_dir+'calibrate_default/fit_results'+waveband+'.txt '+output_dir+'/data_products')
     #add to total log of all days
-    create_total_log(output_dir,wout+'results/','scuba2')
+    create_total_log(output_dir,wout+'results/','scuba2',integ,waveband)
 elif obs_type=='pol2':
     pol2_analysis(output_dir,target_scan_numbers,waveband,integ,diag)
     #move the flux/pol logs from auto calibration into the final processing directory
-    os.system('cp -r '+output_dir+'calibrate_default/fit_results.txt '+output_dir+'/data_products')
-    os.system('cp -r '+output_dir+'calibrate_default/fit_results_pol.txt '+output_dir+'/data_products')
+    os.system('cp -r '+output_dir+'calibrate_default/fit_results'+waveband+'.txt '+output_dir+'/data_products')
+    os.system('cp -r '+output_dir+'calibrate_default/fit_results_pol'+waveband+'.txt '+output_dir+'/data_products')
     #add to total log of all days
-    create_total_log(output_dir,wout+'results/','pol2')
+    create_total_log(output_dir,wout+'results/','pol2',integ,waveband)
 
 
 

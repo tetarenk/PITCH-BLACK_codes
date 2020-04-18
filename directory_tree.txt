@@ -1,0 +1,21 @@
+target_src
+	raw
+		date1
+		date2
+	results
+		outburst_tracking
+			DataFiles
+				watchdog_calibration_file
+			BATObs 
+			Figs
+			HardnessRatioData
+			MAXIObs
+		observation_log
+		date1
+			data_products
+				diag_plots
+			calibrate_default
+		date2
+			data_products
+				diag_plots
+			calibrate_default

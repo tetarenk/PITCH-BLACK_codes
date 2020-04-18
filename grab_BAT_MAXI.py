@@ -9,13 +9,13 @@ INPUTS:	source1: target source name
 		lineFlag - option to add connecting line in HID plot (True or False)
 		direc - path to output directory
 OUTPUT:	Composite plot containing Swift BAT light curve, MAXI light curve, time-series
-		of hardness ratio, and the resulting HID with a sub-mm property (flux, LP, Pol PA)
+		of hardness ratio, and the resulting HID with a sub-mm property (flux, frac. rms, LP, Pol PA)
         overlayed in colour.
 
 Written by: Bailey E. Tetarenko
 Updated by: Alex J. Tetarenko
 
-Last Updated: March 20, 2020
+Last Updated: April 17, 2020
 '''
 
 #packages to import
@@ -832,7 +832,7 @@ def plot_data(source,time_list,radio_plot,radio_prop,mjd_rad_array='',val_rad_ar
     if line_opt==True:
         ax4.plot(hardness[ind],rate[ind],linestyle='-',linewidth=2,color='gray')
         
-    if radio_plot=='y':
+    if radio_plot=='y' and len(val_rad_array)>0:
         cm = plt.cm.get_cmap('jet')
         norm = matplotlib.colors.Normalize(vmin=np.min(val_rad_array), vmax=np.max(val_rad_array))
         ind_mjd=[]
@@ -920,6 +920,7 @@ source1='GX339-4'
 sdate='20091217'#beginning of outburst
 edate='20110414'#current date
 lineFlag=False
+waveband='8'#'4'
 direc='/export/data2/atetarenko/PB_test/v404/'
 ####################
 
@@ -949,10 +950,11 @@ calculateHR(source1,output_dir,'',)
 AccretionStateClassification(source1,output_dir,path_cal,'SM','')
 
 # step 6: plot figs 
-#sub-mm flux, sub-mm LP %, and sub-mm Pol PA versions created
-logs=ascii.read(direc+'results/observation_log.txt',names=('Date','MJD,I','Q','U','Ierr','Qerr','Uerr','poldet','LP','Lperr','PA','PAerr'))
+#sub-mm flux, sub-mm fractional rms, sub-mm LP %, and sub-mm Pol PA versions created
+logs=ascii.read(direc+'results/observation_log'+waveband+'.txt',names=('Date','MJD','I','Frms','Frmserr','Q','U','Ierr','Qerr','Uerr','poldet','LP','Lperr','PA','PAerr'))
 time_list=[Time(sdate[0:4]+'-'+sdate[4:6]+'-'+sdate[6:9],format='iso').mjd,Time(edate[0:4]+'-'+edate[4:6]+'-'+edate[6:9],format='iso').mjd]
 plot_data(source1,time_list,'y','Sub-mm\,\,\,Flux\,\,(mJy/bm)',np.array(logs['MJD']),np.array(logs['I']),lineFlag,'SM')
+plot_data(source1,time_list,'y','Sub-mm\,\,\,Frac. RMS\,\,(%)',np.array(logs['MJD']),np.array(logs['Frms'][logs['Frms']>0]),lineFlag,'SM')
 plot_data(source1,time_list,'y','Sub-mm\,\,\,LP\,\,(percent)',np.array(logs['MJD'][logs['poldet']=='True']),\
     np.arraylogs['LP'][logs['poldet']=='True']),lineFlag,'SM')
 plot_data(source1,time_list,'y','Sub-mm\,\,\,Pol. PA\,\,(deg)',np.array(logs['MJD'][logs['poldet']=='True']),\
