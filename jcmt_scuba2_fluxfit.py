@@ -681,8 +681,9 @@ def create_total_log(direc,wout,obs_type,integ,waveband):
 #User input
 ####################################
 date = '20150622'
+target='v404'
 diag='y'#print diagnostic plots from fitting (y or n)
-wout='/export/data2/atetarenko/PB_test/v404/'
+wout='/path/to/output/'+target+'/'
 ####################################
 
 #define input/output directories
@@ -690,9 +691,8 @@ data_dir=wout+'raw/'+date+'/'
 output_dir=wout+'results/'+date+'/'
 
 #read in shared parameters used in data reduction script
-fp = open('/export/data2/atetarenko/PB_test/v404/results/'+date+'/shared.pkl','rb')
+fp = open(wout+'results/'+date+'/shared.pkl','rb')
 shared = pickle.load(fp)
-target = shared['target']
 cal_type= shared['cal_type']
 obs_type=shared['obs_type']
 waveband=shared['waveband']

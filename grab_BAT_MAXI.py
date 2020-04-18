@@ -921,14 +921,14 @@ sdate='20091217'#beginning of outburst
 edate='20110414'#current date
 lineFlag=False
 waveband='8'#'4'
-direc='/export/data2/atetarenko/PB_test/v404/'
+direc='/path/to/output/'+source1+'/'
 ####################
-
-#path to where watchdog calibration file is stored
-path_cal='/export/data2/atetarenko/PB_test/outburst_tracking/DataFiles/'
 
 #define output directory
 output_dir=direc+'results/outburst_tracking/'
+
+#path to where watchdog calibration file is stored
+path_cal=direc+'DataFiles/'
 
 # step 1: download current BAT and MAXI/GSC light-curves
 DownloadData(source1,'MAXI',output_dir)

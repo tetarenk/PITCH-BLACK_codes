@@ -679,30 +679,34 @@ if __name__=="__main__":
     ######################### 
     date = '20160125'#20150622'#
     target = '3c273'#'BHXRB V404 Cyg'
-    cal_type= 'user'#'user' or auto', always auto for pol2
+    cal_type= 'auto'#'user' or auto', always auto for pol2
     obs_type='pol2'#'scuba2 or pol2'
     waveband='8'#'4'
     integ=120#time bins in seconds, a 0 indicates no timing cubes created
     crop_params=200.0#radius in arcsec to crop output maps of full scans
-    wout='/export/data2/atetarenko/PB_test/tutorial/'
+    wout='/path/to/output/'+target+'/'
     #########################
 
     #define input/output directories
     data_dir =wout+'raw/'+date+'/'
     output_dir = wout+'results/'+date+'/'
+    outburst_track_dir=wout+'results/outburst_tracking/DataFiles/'
 
-    #make/clear out the output diretory for the observation date
-    if os.path.isdir(output_dir):
-        os.system('rm -rf '+output_dir+'*')
+    #create directory tree structure
+    if not os.path.isdir(data_dir):
+        os.makedirs(data_dir)
+        ##need function to copy raw data files into this directory from JCMT data directory!!!
+    if not os.path.isdir(output_dir):
+        os.makedirs(output_dir+'/data_products')
     else:
-        os.mkdir(output_dir)
-    #create a directory within output_dir where all processed data products will go
-    if not os.path.isdir(output_dir+'/data_products'):
-        os.mkdir(output_dir+'/data_products')
+        os.system('rm -rf '+output_dir+'*')
+    if not os.path.isdir(outburst_track_dir):
+        os.makedirs(outburst_track_dir)
+        #need to copy watchdog calibration file into this directory!!!!
 
     #write script inputs to a file for use by the analysis script later
-    plist=[date,target,cal_type,obs_type,waveband,integ,crop_params]
-    plist_names=['date','target','cal_type','obs_type','waveband','integ','crop_params']
+    plist=[cal_type,obs_type,waveband,integ,crop_params]
+    plist_names=['cal_type','obs_type','waveband','integ','crop_params']
     inputs2file(output_dir,plist,plist_names)
 
     #grab and write config files for map cropping recipe and mapmaker/pol2map
